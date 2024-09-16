@@ -1,38 +1,86 @@
 .App {
   text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+input[type="text"], select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+button {
+  padding: 10px 20px;
+  background-color: #007bff;
   color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
 
-.App-link {
-  color: #61dafb;
+button:hover {
+  background-color: #0056b3;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+ul {
+  list-style-type: none;
+  padding: 0;
 }
+
+li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.bg-red-100 { background-color: #fed7d7; }
+.text-red-800 { color: #9b2c2c; }
+.bg-yellow-100 { background-color: #fefcbf; }
+.text-yellow-800 { color: #975a16; }
+.bg-green-100 { background-color: #c6f6d5; }
+.text-green-800 { color: #276749; }
+
+.bg-blue-500 { background-color: #4299e1; }
+.bg-purple-500 { background-color: #9f7aea; }
+.bg-gray-200 { background-color: #edf2f7; }
+
+.text-white { color: white; }
+.text-gray-700 { color: #4a5568; }
+
+.rounded { border-radius: 0.25rem; }
+.shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.space-x-2 > * + * { margin-left: 0.5rem; }
+
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mt-4 { margin-top: 1rem; }
+
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+
+.text-sm { font-size: 0.875rem; }
+.text-2xl { font-size: 1.5rem; }
+.font-bold { font-weight: bold; }
+.font-semibold { font-weight: 600; }
+
+.whitespace-pre-wrap { white-space: pre-wrap; }
+
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+
+.bg-black { background-color: black; }
+.bg-opacity-50 { background-opacity: 0.5; }
+
+.w-full { width: 100%; }
+.max-w-md { max-width: 28rem; }
