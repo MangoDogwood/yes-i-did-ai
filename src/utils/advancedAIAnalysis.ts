@@ -20,24 +20,20 @@ interface UserContext {
   };
 }
 
-async function fetchAIAnalysis(prompt: string): Promise<string> {
-  // In a real implementation, this would make an API call to Claude or another AI service
-  // For now, we'll simulate a response
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(`AI analysis based on: ${prompt}`);
-    }, 1000);
-  });
-}
-
 function aggregateWeeklyData(tasks: Task[]): string {
   const completedTasks = tasks.filter(task => task.completed);
   const incompleteTasks = tasks.filter(task => !task.completed);
-  const projects = [...new Set(tasks.map(task => task.project))];
+  
+  // Fix the Set iteration issue
+  const projectSet = new Set<string>();
+  tasks.forEach(task => projectSet.add(task.project));
+  const projects = Array.from(projectSet);
 
-  async function fetchAIAnalysis(prompt: string): Promise<string> {
-    return await getClaudeAnalysis(prompt);
-  }
+  const tasksByPriority = {
+    high: tasks.filter(t => t.priority === 'high').length,
+    medium: tasks.filter(t => t.priority === 'medium').length,
+    low: tasks.filter(t => t.priority === 'low').length
+  };
 
   return `
     This week's summary:
@@ -45,13 +41,19 @@ function aggregateWeeklyData(tasks: Task[]): string {
     - Incomplete tasks: ${incompleteTasks.length}
     - Active projects: ${projects.join(', ')}
     - Task breakdown by priority:
-      High: ${tasks.filter(t => t.priority === 'high').length}
-      Medium: ${tasks.filter(t => t.priority === 'medium').length}
-      Low: ${tasks.filter(t => t.priority === 'low').length}
+      High: ${tasksByPriority.high}
+      Medium: ${tasksByPriority.medium}
+      Low: ${tasksByPriority.low}
   `;
 }
 
 function generatePrompt(weeklyData: string, userContext: UserContext): string {
+  const {
+    name,
+    preferences: { workStyle, motivationFactors },
+    historicalData: { averageTasksPerWeek, commonProjects, productivityPeaks }
+  } = userContext;
+
   return `
     As an AI assistant, analyze the following weekly task data and user context. Provide in-depth insights, 
     recommendations, and encouraging messages tailored to the user's work style and preferences.
@@ -60,12 +62,12 @@ function generatePrompt(weeklyData: string, userContext: UserContext): string {
     ${weeklyData}
 
     User Context:
-    Name: ${userContext.name}
-    Work Style: ${userContext.preferences.workStyle}
-    Motivation Factors: ${userContext.preferences.motivationFactors.join(', ')}
-    Average Tasks Per Week: ${userContext.historicalData.averageTasksPerWeek}
-    Common Projects: ${userContext.historicalData.commonProjects.join(', ')}
-    Productivity Peaks: ${userContext.historicalData.productivityPeaks.join(', ')}
+    Name: ${name}
+    Work Style: ${workStyle}
+    Motivation Factors: ${motivationFactors.join(', ')}
+    Average Tasks Per Week: ${averageTasksPerWeek}
+    Common Projects: ${commonProjects.join(', ')}
+    Productivity Peaks: ${productivityPeaks.join(', ')}
 
     Please provide:
     1. A summary of the week's progress
@@ -75,18 +77,32 @@ function generatePrompt(weeklyData: string, userContext: UserContext): string {
   `;
 }
 
-export async function generateWeeklyAnalysis(tasks: Task[], userContext: UserContext): Promise<WeeklyAnalysis> {
-  const weeklyData = aggregateWeeklyData(tasks);
-  const prompt = generatePrompt(weeklyData, userContext);
-  const aiResponse = await fetchAIAnalysis(prompt);
+export async function generateWeeklyAnalysis(
+  tasks: Task[], 
+  userContext: UserContext
+): Promise<WeeklyAnalysis> {
+  try {
+    const weeklyData = aggregateWeeklyData(tasks);
+    const prompt = generatePrompt(weeklyData, userContext);
+    const aiResponse = await getClaudeAnalysis(prompt);
 
-  // In a real implementation, you'd parse the AI response to extract these sections
-  // For now, we'll simulate it
-  const analysis: WeeklyAnalysis = {
-    summary: aiResponse.substring(0, 200) + "...",
-    insights: aiResponse.substring(200, 400) + "...",
-    recommendations: aiResponse.substring(400, 600) + "...",
-  };
+    // Parse AI response into sections
+    const sections = aiResponse.split('\n\n');
+    
+    const analysis: WeeklyAnalysis = {
+      summary: sections[0] || 'No summary available',
+      insights: sections[1] || 'No insights available',
+      recommendations: sections[2] || 'No recommendations available',
+    };
 
-  return analysis;
+    return analysis;
+  } catch (error) {
+    console.error('Error generating weekly analysis:', error);
+    throw new Error('Failed to generate weekly analysis');
+  }
+}
+
+// Utility function for testing
+export function _internal_aggregateWeeklyData(tasks: Task[]): string {
+  return aggregateWeeklyData(tasks);
 }

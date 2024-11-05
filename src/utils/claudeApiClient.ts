@@ -1,49 +1,53 @@
-import axios, { AxiosError } from 'axios';
+import { analytics } from './analytics';
 
-const API_URL = 'http://localhost:3001/api/claude';
-
-interface ClaudeErrorResponse {
-  error?: {
-    message: string;
-    type: string;
-  };
+interface ClaudeResponse {
+  completion: string;
+  stop_reason: string;
+  model: string;
 }
 
-export async function getClaudeAnalysis(prompt: string): Promise<string> {
-  console.log('Attempting to call Claude API via proxy...');
+export class ClaudeApiClient {
+  private static instance: ClaudeApiClient;
+  private baseUrl: string;
 
-  try {
-    const response = await axios.post(API_URL, {
-      model: "claude-3-opus-20240229",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }]
-    });
+  private constructor() {
+    this.baseUrl = process.env.NEXT_PUBLIC_CLAUDE_API_URL || '/api/claude';
+  }
 
-    console.log('Claude API response received:', response.status);
-    
-    if (response.data && response.data.content && response.data.content.length > 0) {
-      return response.data.content[0].text;
-    } else {
-      console.error('Unexpected response structure:', response.data);
-      throw new Error('Unexpected response structure from Claude API');
+  static getInstance(): ClaudeApiClient {
+    if (!ClaudeApiClient.instance) {
+      ClaudeApiClient.instance = new ClaudeApiClient();
     }
-  } catch (error) {
-    console.error('Detailed error:', error);
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError<ClaudeErrorResponse>;
-      let errorMessage: string;
+    return ClaudeApiClient.instance;
+  }
 
-      if (axiosError.response?.data?.error?.message) {
-        errorMessage = axiosError.response.data.error.message;
-      } else if (axiosError.response?.data && typeof axiosError.response.data === 'string') {
-        errorMessage = axiosError.response.data;
-      } else {
-        errorMessage = axiosError.message;
+  async getAnalysis(prompt: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.baseUrl}/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      throw new Error(`API error: ${axiosError.response?.status} - ${errorMessage}`);
-    } else {
-      throw new Error('An unexpected error occurred');
+      const data: ClaudeResponse = await response.json();
+      return data.completion;
+    } catch (error) {
+      analytics.track('claude_api_error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        prompt: prompt.slice(0, 100) // Only log first 100 chars for privacy
+      });
+      throw error;
     }
   }
 }
+
+export const claudeApi = ClaudeApiClient.getInstance();
+
+// Legacy support for old code
+export const getClaudeAnalysis = (prompt: string) => claudeApi.getAnalysis(prompt);

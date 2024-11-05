@@ -1,287 +1,329 @@
-import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from './store';
+import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Mic,
+  Award,
+  Settings,
+  X
+} from 'lucide-react';
 import { 
   addTask, 
-  toggleTask, 
-  editTask, 
-  deleteTask, 
-  addTaskSummary, 
-  deleteProject, 
-  clearCompletedTasks,
-  Task 
+  updateTask,
+  deleteTask,
+  setTasks,
+  reorderTasks,
 } from './store/tasksSlice';
-import { PlusCircle, Edit2, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
-import AIInsights from './components/AIInsights';
+import type { RootState } from './store';
+import type { Task } from './store/tasksSlice';
+import { Button } from './components/ui/button';
 import VoiceInput from './components/VoiceInput';
-import WeeklyAIAnalysis from './components/WeeklyAIAnalysis';
+import InsightsTab from './components/insights/InsightsTab';
+import { analytics } from './utils/analytics';
 
-const App: React.FC = () => {
-  const dispatch = useDispatch();
-  const { tasks, streak } = useSelector((state: RootState) => state.tasks);
+interface TaskInputProps {
+  onAddTask: (task: string, project: string, priority: string) => void;
+  existingProjects: string[];
+}
+
+const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, existingProjects }) => {
   const [newTask, setNewTask] = useState('');
   const [newProject, setNewProject] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
-  const [expandedProjects, setExpandedProjects] = useState<{[key: string]: boolean}>({});
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [currentTask, setCurrentTask] = useState<Task | null>(null);
-  const [taskSummary, setTaskSummary] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false);
 
-  const handleAddTask = () => {
-    if (newTask.trim() && newProject.trim()) {
-      dispatch(addTask({
-        id: Date.now(),
-        text: newTask,
-        completed: false,
-        project: newProject,
-        priority: newPriority,
-        summary: ''
-      }));
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newTask.trim()) {
+      onAddTask(newTask, newProject, newPriority);
       setNewTask('');
       setNewProject('');
       setNewPriority('medium');
-      setError(null);
-    } else {
-      setError('Please enter both a task name and a project.');
     }
-  };
-
-  const handleClearCompleted = () => {
-    if (window.confirm('Are you sure you want to clear all completed tasks?')) {
-      dispatch(clearCompletedTasks());
-    }
-  };
-
-  const handleGenerateInsights = () => {
-    setIsGeneratingInsights(true);
-    setTimeout(() => {
-      setIsGeneratingInsights(false);
-    }, 1500);
-  };
-
-  const handleToggleTask = (task: Task) => {
-    if (!task.completed) {
-      setCurrentTask(task);
-      setShowSummaryModal(true);
-    } else {
-      dispatch(toggleTask(task.id));
-    }
-  };
-
-  const handleEditTask = (id: number, newText: string) => {
-    dispatch(editTask({ id, text: newText }));
-    setEditingTaskId(null);
-  };
-
-  const handleDeleteProject = (project: string) => {
-    if (window.confirm(`Are you sure you want to delete the project "${project}" and all its tasks?`)) {
-      dispatch(deleteProject(project));
-    }
-  };
-
-  const projects = [...new Set(tasks.map(task => task.project))];
-
-  const priorityClasses = {
-    high: 'bg-red-100 text-red-800',
-    medium: 'bg-yellow-100 text-yellow-800',
-    low: 'bg-green-100 text-green-800'
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-4">Yes I Did AI</h1>
-      
-      <div className="mb-4 flex justify-between items-center">
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => setActiveTab('active')}
-            className={`px-3 py-1 rounded text-sm ${activeTab === 'active' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            Active
-          </button>
-          <button 
-            onClick={() => setActiveTab('completed')}
-            className={`px-3 py-1 rounded text-sm ${activeTab === 'completed' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            Completed
-          </button>
-        </div>
-        <div className="text-sm font-semibold">Streak: {streak.count} days 🔥</div>
-      </div>
-
-      {projects.map(project => (
-        <div key={project} className="mb-4 border rounded">
-          <div className="bg-gray-100 p-2 flex justify-between items-center">
-            <h2 className="font-semibold">{project}</h2>
-            <div className="flex items-center">
-              <button 
-                onClick={() => setExpandedProjects(prev => ({ ...prev, [project]: !prev[project] }))}
-                className="mr-2"
-              >
-                {expandedProjects[project] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-              <button 
-                onClick={() => handleDeleteProject(project)}
-                className="text-red-500 hover:text-red-700"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-          {expandedProjects[project] && (
-            <ul className="p-2">
-              {tasks
-                .filter(task => task.project === project && (activeTab === 'active' ? !task.completed : task.completed))
-                .map(task => (
-                  <li key={task.id} className="flex items-center justify-between mb-2">
-                    <div className="flex items-center flex-grow">
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => handleToggleTask(task)}
-                        className="mr-2"
-                      />
-                      {editingTaskId === task.id ? (
-                        <input
-                          type="text"
-                          value={task.text}
-                          onChange={(e) => handleEditTask(task.id, e.target.value)}
-                          onBlur={() => setEditingTaskId(null)}
-                          className="flex-grow p-1 border rounded"
-                          autoFocus
-                        />
-                      ) : (
-                        <span className={task.completed ? 'line-through flex-grow' : 'flex-grow'}>
-                          {task.text}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center">
-                      <span className={`px-2 py-1 rounded text-xs ${priorityClasses[task.priority]}`}>
-                        {task.priority}
-                      </span>
-                      <button 
-                        onClick={() => setEditingTaskId(task.id)}
-                        className="ml-2 text-blue-500 hover:text-blue-700"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => dispatch(deleteTask(task.id))}
-                        className="ml-2 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </div>
-      ))}
-
-      <div className="mt-4">
+    <form onSubmit={handleSubmit} className="mb-6 space-y-4">
+      <div className="flex gap-4">
         <input
           type="text"
           value={newTask}
           onChange={(e) => setNewTask(e.target.value)}
-          placeholder="New task"
-          className="w-full p-2 mb-2 border rounded"
+          placeholder="Add a new task..."
+          className="flex-1 p-2 border rounded"
         />
-        <input
-          type="text"
+        <select
           value={newProject}
-          onChange={(e) => setNewProject(e.target.value)}
-          placeholder="Project"
-          className="w-full p-2 mb-2 border rounded"
-        />
+          onChange={(e) => {
+            setNewProject(e.target.value);
+            setShowNewProjectInput(e.target.value === 'new');
+          }}
+          className="p-2 border rounded"
+        >
+          <option value="">Select Project</option>
+          {existingProjects.map(project => (
+            <option key={project} value={project}>{project}</option>
+          ))}
+          <option value="new">New Project</option>
+        </select>
         <select
           value={newPriority}
           onChange={(e) => setNewPriority(e.target.value as 'low' | 'medium' | 'high')}
-          className="w-full p-2 mb-2 border rounded"
+          className="p-2 border rounded"
         >
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
         </select>
-        <div className="flex space-x-2">
-          <button 
-            onClick={handleAddTask}
-            className="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200 flex items-center justify-center"
-          >
-            <PlusCircle className="mr-2" size={20} />
-            Add Task
-          </button>
-          <VoiceInput />
-        </div>
-        {error && <p className="text-red-500 mt-2">{error}</p>}
       </div>
-
-      {activeTab === 'completed' && (
-        <button
-          onClick={handleClearCompleted}
-          className="mt-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition duration-200 flex items-center justify-center"
-        >
-          <RefreshCw className="mr-2" size={20} />
-          Clear Completed Tasks
-        </button>
+      {showNewProjectInput && (
+        <input
+          type="text"
+          value={newProject}
+          onChange={(e) => setNewProject(e.target.value)}
+          placeholder="Enter new project name..."
+          className="w-full p-2 border rounded"
+        />
       )}
+      <Button type="submit" disabled={!newTask.trim()}>
+        Add Task
+      </Button>
+    </form>
+  );
+};
 
-      {showSummaryModal && currentTask && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Task Completed</h2>
-            <p className="mb-4">Great job completing "{currentTask.text}"! What did you accomplish?</p>
-            <textarea
-              value={taskSummary}
-              onChange={(e) => setTaskSummary(e.target.value)}
-              className="w-full p-2 border rounded mb-4"
-              rows={3}
-              placeholder="Enter a brief summary of your accomplishment..."
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowSummaryModal(false)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+const App: React.FC = () => {
+  const dispatch = useDispatch();
+  const tasks = useSelector((state: RootState) => state.tasks.tasks);
+  
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [highPriorityFilter, setHighPriorityFilter] = useState(false);
+
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('yesIdidAI_tasks');
+    if (savedTasks) {
+      dispatch(setTasks(JSON.parse(savedTasks)));
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    localStorage.setItem('yesIdidAI_tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  const handleAddTask = (text: string, project: string, priority: string) => {
+    const newTask: Task = {
+      id: Date.now(),
+      text,
+      title: text,
+      completed: false,
+      project,
+      priority: priority as 'low' | 'medium' | 'high',
+      summary: text.slice(0, 100),
+      description: text,
+      dueDate: null,
+      tags: [],
+      subtasks: [],
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      completedInWeek: null,
+      completedInMonth: null,
+      completedInYear: null,
+      archived: false
+    };
+
+    dispatch(addTask(newTask));
+    analytics.track('task_added', { project, priority });
+  };
+
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const { source, destination, draggableId } = result;
+    if (source.droppableId === destination.droppableId && 
+        source.index === destination.index) {
+      return;
+    }
+
+    const taskToMove = tasks.find(task => task.id.toString() === draggableId);
+    if (!taskToMove) return;
+
+    const newTasks = [...tasks];
+    const [removed] = newTasks.splice(source.index, 1);
+    newTasks.splice(destination.index, 0, removed);
+
+    if (source.droppableId !== destination.droppableId) {
+      const [destProject] = destination.droppableId.split(':');
+      const updatedTask = { ...taskToMove, project: destProject };
+      dispatch(updateTask(updatedTask));
+    }
+
+    dispatch(reorderTasks(newTasks));
+    analytics.track('task_reordered', {
+      fromIndex: source.index,
+      toIndex: destination.index,
+      project: taskToMove.project
+    });
+  };
+
+  const projects = Array.from(new Set(tasks.map(task => task.project)));
+  const priorityOrder = { high: 3, medium: 2, low: 1 };
+  const priorityBadges = {
+    high: 'bg-red-100 text-red-800',
+    medium: 'bg-yellow-100 text-yellow-800',
+    low: 'bg-green-100 text-green-800'
+  };
+
+  const handleDeleteTask = (taskId: number) => {
+    dispatch(deleteTask(taskId));
+    analytics.track('task_deleted', { taskId });
+  };
+
+  const handleToggleProject = (project: string) => {
+    setExpandedProjects(prev => ({
+      ...prev,
+      [project]: !prev[project]
+    }));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Tasks</h1>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setHighPriorityFilter(!highPriorityFilter)}
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  dispatch(toggleTask(currentTask.id));
-                  dispatch(addTaskSummary({ id: currentTask.id, summary: taskSummary }));
-                  setShowSummaryModal(false);
-                  setTaskSummary('');
-                }}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                High Priority Only
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowVoiceInput(true)}
               >
-                Submit
-              </button>
+                <Mic className="w-5 h-5" />
+              </Button>
             </div>
           </div>
+
+          <TaskInput 
+            onAddTask={handleAddTask}
+            existingProjects={projects}
+          />
+
+          <AnimatePresence>
+            {showVoiceInput && (
+              <VoiceInput 
+                onClose={() => setShowVoiceInput(false)}
+                onError={setError}
+              />
+            )}
+          </AnimatePresence>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">
+              {error}
+              <button 
+                onClick={() => setError(null)}
+                className="ml-2 text-red-500 hover:text-red-700"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {projects.map(project => (
+              <motion.div 
+                key={project}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                <div 
+                  className="bg-white p-4 rounded-lg shadow-sm cursor-pointer"
+                  onClick={() => handleToggleProject(project)}
+                >
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold flex items-center">
+                      {project}
+                      <span className="ml-2 text-sm text-gray-500">
+                        ({tasks.filter(t => t.project === project && !t.completed).length} tasks)
+                      </span>
+                    </h2>
+                    {expandedProjects[project] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {expandedProjects[project] && (
+                    <Droppable droppableId={`${project}`}>
+                      {(provided) => (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="mt-2 space-y-2"
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                        >
+                          {tasks
+                            .filter(task => 
+                              task.project === project && 
+                              !task.completed &&
+                              (!highPriorityFilter || task.priority === 'high')
+                            )
+                            .sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority])
+                            .map((task, index) => (
+                              <Draggable 
+                                key={task.id} 
+                                draggableId={task.id.toString()} 
+                                index={index}
+                              >
+                                {(provided) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className="bg-white p-4 rounded-lg shadow-sm"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-gray-800">{task.text}</span>
+                                      <div className="flex items-center space-x-2">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${priorityBadges[task.priority]}`}>
+                                          {task.priority}
+                                        </span>
+                                        <button
+                                          onClick={() => handleDeleteTask(task.id)}
+                                          className="text-red-500 hover:text-red-700"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                          {provided.placeholder}
+                        </motion.div>
+                      )}
+                    </Droppable>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
+          </div>
         </div>
-      )}
-
-      <div className="mt-8">
-        <button
-          onClick={handleGenerateInsights}
-          className="mb-4 bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 transition duration-200 flex items-center justify-center"
-          disabled={isGeneratingInsights}
-        >
-          {isGeneratingInsights ? 'Generating...' : 'Generate AI Insights'}
-        </button>
-        {isGeneratingInsights ? (
-          <div className="text-center">Loading insights...</div>
-        ) : (
-          <AIInsights />
-        )}
-      </div>
-
-      <WeeklyAIAnalysis />
+      </DragDropContext>
     </div>
   );
 };
